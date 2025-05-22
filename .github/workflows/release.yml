@@ -7,79 +7,126 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        arch: [amd64, arm64]
+        include:
+          # Linux builds
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            arch: amd64
+            artifact_name: linux-amd64
+            
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            arch: arm64
+            artifact_name: linux-arm64
+            
+          # macOS builds
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            arch: amd64
+            artifact_name: macos-amd64
+            
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            arch: arm64
+            artifact_name: macos-arm64
+            
+          # Windows builds
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            arch: amd64
+            artifact_name: windows-amd64
+            
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            arch: arm64
+            artifact_name: windows-arm64
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          target: ${{ matrix.arch }}-unknown-linux-gnu
+          targets: ${{ matrix.target }}
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y zip
+      - name: Install cross-compilation tools (Linux arm64)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build project
-        run: |
-          rustup target add ${{ matrix.arch }}-unknown-linux-gnu
-          cargo build --release --target=${{ matrix.arch }}-unknown-linux-gnu
+        run: cargo build --release --target=${{ matrix.target }}
 
-      - name: Package build
+      - name: Prepare binary
+        id: prepare_binary
+        shell: bash
         run: |
-          zip -j ${{ matrix.os }}-${{ matrix.arch }}.zip target/${{ matrix.arch }}-unknown-linux-gnu/release/rustora
+          mkdir -p release
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp target/${{ matrix.target }}/release/rustora.exe release/
+            BINARY_NAME=rustora.exe
+          else
+            cp target/${{ matrix.target }}/release/rustora release/
+            BINARY_NAME=rustora
+          fi
+          echo "binary_name=$BINARY_NAME" >> $GITHUB_OUTPUT
 
-      - name: Calculate SHA256
-        id: sha256
+      - name: Create ZIP package
+        shell: bash
         run: |
-          sha256sum ${{ matrix.os }}-${{ matrix.arch }}.zip > ${{ matrix.os }}-${{ matrix.arch }}.sha256
+          cd release
+          zip -j ${{ matrix.artifact_name }}.zip ${{ steps.prepare_binary.outputs.binary_name }}
+          shasum -a 256 ${{ matrix.artifact_name }}.zip > ${{ matrix.artifact_name }}.sha256
+          cd ..
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}
+          name: ${{ matrix.artifact_name }}
           path: |
-            ${{ matrix.os }}-${{ matrix.arch }}.zip
-            ${{ matrix.os }}-${{ matrix.arch }}.sha256
+            release/${{ matrix.artifact_name }}.zip
+            release/${{ matrix.artifact_name }}.sha256
 
   release:
+    name: Create Release
     needs: build
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
-      - name: Create Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-
-      - name: Upload Release Assets
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ matrix.os }}-${{ matrix.arch }}.zip
-          asset_name: ${{ matrix.os }}-${{ matrix.arch }}.zip
-          asset_content_type: application/zip
-
-      - name: Upload SHA256
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ matrix.os }}-${{ matrix.arch }}.sha256
-          asset_name: ${{ matrix.os }}-${{ matrix.arch }}.sha256
-          asset_content_type: text/plain
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/*.sha256
+          body: |
+            ## Rustora ${{ github.ref_name }}
+            
+            ### SHA256 校验和
+            
+            ```
+            ${{ join(hashFiles('artifacts/**/*.sha256'), '\n') }}
+            ```
+            
+            ### 下载
+            - linux-amd64.zip - Linux x64 版本
+            - linux-arm64.zip - Linux ARM64 版本
+            - macos-amd64.zip - macOS x64 版本
+            - macos-arm64.zip - macOS ARM64 版本
+            - windows-amd64.zip - Windows x64 版本
+            - windows-arm64.zip - Windows ARM64 版本
