@@ -111,12 +111,7 @@ jobs:
           body: |
             ## Rustora ${{ github.ref_name }}
             
-            ### SHA256 校验和
-            
-            ```
-            ${{ join(hashFiles('artifacts/**/*.sha256'), '\n') }}
-            ```
-            
+
             ### 下载
             - linux-amd64.zip - Linux x64 版本
             - macos-arm64.zip - macOS ARM64 版本
