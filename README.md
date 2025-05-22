@@ -75,4 +75,3 @@ rustora.exe --url https://image.example.com/api/v1/upload --files "C:\path\to\im
 ## 许可证
 
 General Public License v3.0
-```
