@@ -1,0 +1,22 @@
+[package]
+name = "rustora"
+version = "0.1.0"
+edition = "2024"
+description = "用于Typora上传图片到goImage服务的CLI客户端"
+authors = ["NodeSeeker"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "z"
+strip = true
+panic = "abort"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+reqwest = { version = "0.12", features = ["json", "multipart", "rustls-tls"], default-features = false }
+tokio = { version = "1.45", features = ["rt-multi-thread", "fs", "macros", "io-util", "time"], default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+mime_guess = "2.0"
