@@ -61,13 +61,22 @@ jobs:
           fi
           echo "binary_name=$BINARY_NAME" >> $GITHUB_OUTPUT
 
-      - name: Create ZIP package
+      - name: Create ZIP package (Unix)
+        if: matrix.os != 'windows-latest'
         shell: bash
         run: |
           cd release
           zip -j ${{ matrix.artifact_name }}.zip ${{ steps.prepare_binary.outputs.binary_name }}
           shasum -a 256 ${{ matrix.artifact_name }}.zip > ${{ matrix.artifact_name }}.sha256
           cd ..
+          
+      - name: Create ZIP package (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "release\${{ steps.prepare_binary.outputs.binary_name }}" -DestinationPath "release\${{ matrix.artifact_name }}.zip"
+          $hash = Get-FileHash -Algorithm SHA256 "release\${{ matrix.artifact_name }}.zip"
+          $hash.Hash + "  ${{ matrix.artifact_name }}.zip" | Out-File -FilePath "release\${{ matrix.artifact_name }}.sha256" -Encoding utf8
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
