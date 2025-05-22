@@ -12,19 +12,19 @@ jobs:
     strategy:
       matrix:
         include:
-          # Linux builds
+          # Linux builds (只保留 amd64)
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             arch: amd64
             artifact_name: linux-amd64
             
-          # macOS builds
+          # macOS builds (只保留 arm64)
           - os: macos-latest
             target: aarch64-apple-darwin
             arch: arm64
             artifact_name: macos-arm64
             
-          # Windows builds
+          # Windows builds (只保留 amd64)
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             arch: amd64
@@ -110,8 +110,5 @@ jobs:
             
             ### 下载
             - linux-amd64.zip - Linux x64 版本
-            - linux-arm64.zip - Linux ARM64 版本
-            - macos-amd64.zip - macOS x64 版本
             - macos-arm64.zip - macOS ARM64 版本
             - windows-amd64.zip - Windows x64 版本
-            - windows-arm64.zip - Windows ARM64 版本
